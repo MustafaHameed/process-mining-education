@@ -1,34 +1,22 @@
-# Educational Process Mining Analysis
+# Process Mining Educational Dashboard
 
-This project implements educational process mining analysis on the EPM (Educational Process Mining) dataset from the University of Genoa. The analysis provides insights into student learning behaviors, process patterns, and educational performance.
+An interactive dashboard for process mining education with advanced visualization and automated interpretation.
 
-## Dataset
-The EPM dataset contains behavioral data from 115 first-year engineering students during 6 laboratory sessions of a digital electronics course. Students used the DEEDS (Digital Electronics Education and Design Suite) simulation environment.
+## Last Updated
+**Date:** 2025-08-20 09:36:40  
+**Author:** MustafaHameed
 
 ## Features
-- **Data Extraction and Preprocessing**: Clean and prepare the dataset for process mining
-- **Process Discovery**: Discover educational process models and visualize learning paths
-- **Performance Analysis**: Calculate metrics and identify patterns in student progression
-- **Conformance Checking**: Compare actual vs expected learning behaviors
-- **Insights Generation**: Create visualizations and actionable insights
+
+- **Interactive Process Maps**: Visualize process flows with detailed activity relationships
+- **Performance Metrics**: Analyze key process metrics and identify bottlenecks
+- **Pattern Recognition**: Discover and interpret process variants and patterns
+- **Conformance Checking**: Compare actual processes to reference models
+- **Educational Insights**: Learn process mining concepts through guided interpretation
 
 ## Installation
-```bash
-pip install -r requirements.txt
-```
 
-## Usage
-```bash
-python main.py
-```
-
-## Output
-The analysis generates:
-- Process models and visualizations
-- Performance metrics and statistics
-- Conformance checking results
-- Educational insights and recommendations
-
-## Citation
-If you use this analysis, please cite the original dataset:
-M. Vahdat, L. Oneto, D. Anguita, M. Funk, M. Rauterberg. Educational Process Mining (EPM): A Learning Analytics Data Set. EC-TEL 2015.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/MustafaHameed/process-mining-education.git
+   cd process-mining-education
