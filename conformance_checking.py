@@ -489,7 +489,7 @@ class ConformanceChecker:
         
         # Save report
         report_path = os.path.join(self.output_dir, 'conformance_analysis_report.txt')
-        with open(report_path, 'w') as f:
+        with open(report_path, 'w', encoding='utf-8') as f:
             f.write(report)
         
         print(f"Conformance analysis complete. Report saved to {report_path}")

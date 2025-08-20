@@ -29,6 +29,28 @@ warnings.filterwarnings('ignore')
 class ProcessDiscovery:
     """Class for discovering educational process models from event logs."""
     
+    def _detect_graphviz_installation(self) -> bool:
+        """
+        Detect if Graphviz is properly installed and accessible.
+        
+        Returns:
+            True if Graphviz is available, False otherwise
+        """
+        try:
+            import subprocess
+            import os
+            
+            # Check if 'dot' executable is available
+            result = subprocess.run(['dot', '-V'], 
+                                  capture_output=True, 
+                                  text=True, 
+                                  timeout=5)
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError, OSError):
+            return False
+        except Exception:
+            return False
+    
     def __init__(self, output_dir: str = "output"):
         """
         Initialize process discovery.
@@ -38,6 +60,20 @@ class ProcessDiscovery:
         """
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
+        
+        # Check Graphviz availability and provide guidance
+        self.graphviz_available = self._detect_graphviz_installation()
+        if not self.graphviz_available:
+            print("⚠️  Graphviz not detected on this system")
+            print("💡 Process visualizations will use text fallbacks")
+            print("   To enable full visualizations, install Graphviz:")
+            print("   • Ubuntu/Debian: sudo apt-get install graphviz")
+            print("   • macOS: brew install graphviz") 
+            print("   • Windows: Download from https://graphviz.org/download/")
+            print("   • Then ensure 'dot' is in your system PATH")
+            print()
+        else:
+            print("✅ Graphviz detected - full visualizations available")
         
     def create_pm4py_log(self, df: pd.DataFrame) -> object:
         """
@@ -108,8 +144,18 @@ class ProcessDiscovery:
             dfg_visualizer.save(gviz, output_path)
             print(f"DFG visualization saved to {output_path}")
         except Exception as e:
-            print(f"Error creating DFG visualization: {e}")
-            print("Continuing with other process discovery methods...")
+            error_msg = str(e).lower()
+            if 'graphviz' in error_msg or 'dot' in error_msg or 'executable' in error_msg:
+                print(f"⚠️  Graphviz not available: {e}")
+                print("💡 To enable visualizations, install Graphviz:")
+                print("   • Ubuntu/Debian: sudo apt-get install graphviz")
+                print("   • macOS: brew install graphviz")
+                print("   • Windows: Download from https://graphviz.org/download/")
+                print("   • Then ensure 'dot' is in your system PATH")
+                self._create_text_fallback(dfg, start_activities, end_activities, title)
+            else:
+                print(f"Error creating DFG visualization: {e}")
+                print("Continuing with other process discovery methods...")
     
     def discover_inductive_model(self, log: object) -> Tuple[object, object, object]:
         """
@@ -171,7 +217,12 @@ class ProcessDiscovery:
             pt_visualizer.save(gviz, output_path)
             print(f"Process tree visualization saved to {output_path}")
         except Exception as e:
-            print(f"Error creating process tree visualization: {e}")
+            error_msg = str(e).lower()
+            if 'graphviz' in error_msg or 'dot' in error_msg or 'executable' in error_msg:
+                print(f"⚠️  Graphviz not available for process tree visualization: {e}")
+                print("💡 Install Graphviz to enable process tree visualizations")
+            else:
+                print(f"Error creating process tree visualization: {e}")
     
     def visualize_petri_net(self, net: object, initial_marking: object, final_marking: object,
                            title: str = "Petri Net") -> None:
@@ -191,7 +242,12 @@ class ProcessDiscovery:
             pn_visualizer.save(gviz, output_path)
             print(f"Petri net visualization saved to {output_path}")
         except Exception as e:
-            print(f"Error creating Petri net visualization: {e}")
+            error_msg = str(e).lower()
+            if 'graphviz' in error_msg or 'dot' in error_msg or 'executable' in error_msg:
+                print(f"⚠️  Graphviz not available for Petri net visualization: {e}")
+                print("💡 Install Graphviz to enable Petri net visualizations")
+            else:
+                print(f"Error creating Petri net visualization: {e}")
     
     def visualize_heuristics_net(self, heu_net: object, title: str = "Heuristics Net") -> None:
         """
@@ -207,7 +263,12 @@ class ProcessDiscovery:
             hn_visualizer.save(gviz, output_path)
             print(f"Heuristics net visualization saved to {output_path}")
         except Exception as e:
-            print(f"Error creating heuristics net visualization: {e}")
+            error_msg = str(e).lower()
+            if 'graphviz' in error_msg or 'dot' in error_msg or 'executable' in error_msg:
+                print(f"⚠️  Graphviz not available for heuristics net visualization: {e}")
+                print("💡 Install Graphviz to enable heuristics net visualizations")
+            else:
+                print(f"Error creating heuristics net visualization: {e}")
     
     def analyze_process_variants(self, log: object) -> Dict:
         """
@@ -357,6 +418,42 @@ class ProcessDiscovery:
         print(f"All visualizations saved to {self.output_dir}/")
         
         return results
+    
+    def _create_text_fallback(self, dfg: Dict, start_activities: Dict, end_activities: Dict, title: str) -> None:
+        """
+        Create a text-based fallback when Graphviz is not available.
+        
+        Args:
+            dfg: Directly-follows graph
+            start_activities: Start activities dictionary  
+            end_activities: End activities dictionary
+            title: Title for the fallback
+        """
+        try:
+            fallback_path = os.path.join(self.output_dir, f"{title.lower().replace(' ', '_')}_fallback.txt")
+            with open(fallback_path, 'w', encoding='utf-8') as f:
+                f.write(f"=== {title} - Text Representation ===\n\n")
+                f.write("Note: Graphviz not available. This is a text representation of the process model.\n\n")
+                
+                f.write("START ACTIVITIES:\n")
+                for activity, count in sorted(start_activities.items(), key=lambda x: x[1], reverse=True):
+                    f.write(f"  • {activity}: {count} occurrences\n")
+                
+                f.write("\nPROCESS FLOWS (Activity -> Activity: frequency):\n")
+                for (source, target), frequency in sorted(dfg.items(), key=lambda x: x[1], reverse=True)[:20]:
+                    f.write(f"  • {source} → {target}: {frequency}\n")
+                
+                f.write("\nEND ACTIVITIES:\n")  
+                for activity, count in sorted(end_activities.items(), key=lambda x: x[1], reverse=True):
+                    f.write(f"  • {activity}: {count} occurrences\n")
+                    
+                f.write(f"\nTotal flows: {len(dfg)}\n")
+                f.write(f"Total start activities: {len(start_activities)}\n")
+                f.write(f"Total end activities: {len(end_activities)}\n")
+            
+            print(f"📄 Text fallback saved to {fallback_path}")
+        except Exception as e:
+            print(f"Failed to create text fallback: {e}")
 
 
 def main():

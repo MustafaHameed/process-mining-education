@@ -13,9 +13,35 @@ The EPM dataset contains behavioral data from 115 first-year engineering student
 - **Insights Generation**: Create visualizations and actionable insights
 
 ## Installation
+
+### Python Dependencies
 ```bash
 pip install -r requirements.txt
 ```
+
+### Graphviz Installation (Required for Process Visualizations)
+For full process mining visualizations, you need to install Graphviz on your system:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install graphviz
+```
+
+**macOS:**
+```bash
+brew install graphviz
+```
+
+**Windows:**
+1. Download from [https://graphviz.org/download/](https://graphviz.org/download/)
+2. Install and ensure `dot.exe` is in your system PATH
+
+**Verify Installation:**
+```bash
+dot -V
+```
+
+> **Note:** If Graphviz is not available, the analysis will continue with text-based fallbacks for process visualizations.
 
 ## Usage
 ```bash

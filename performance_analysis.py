@@ -514,7 +514,7 @@ class PerformanceAnalysis:
         
         # Save report
         report_path = os.path.join(self.output_dir, 'performance_analysis_report.txt')
-        with open(report_path, 'w') as f:
+        with open(report_path, 'w', encoding='utf-8') as f:
             f.write(report)
         
         print(f"Performance analysis complete. Report saved to {report_path}")
