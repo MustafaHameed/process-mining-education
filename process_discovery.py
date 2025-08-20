@@ -99,7 +99,7 @@ class ProcessDiscovery:
             title: Title for the visualization
         """
         try:
-            # Create visualization without service time (which is causing the error)
+            # Create visualization with basic parameters
             parameters = {dfg_visualizer.Variants.FREQUENCY.value.Parameters.FORMAT: "png"}
             gviz = dfg_visualizer.apply(dfg, start_activities, end_activities, parameters=parameters)
             
@@ -142,12 +142,25 @@ class ProcessDiscovery:
             Tuple of (heuristics_net, net, initial_marking, final_marking)
         """
         try:
-            # Apply heuristics miner
-            heu_net = heuristics_miner.apply(log, parameters={heuristics_miner.Variants.CLASSIC.value.Parameters.DEPENDENCY_THRESH: 0.5})
+            # Use the updated heuristics miner API with correct parameters
+            from pm4py.algo.discovery.heuristics import algorithm as heuristics_miner
             
-            # Convert to Petri net (use convert_to_petri_net for heuristics net)
-            from pm4py.objects.conversion.heuristics_net import converter as hn_converter
-            net, initial_marking, final_marking = hn_converter.apply(heu_net)
+            # For newer PM4Py versions
+            try:
+                heu_net = heuristics_miner.apply_heu(log, parameters={
+                    heuristics_miner.Variants.CLASSIC.value.Parameters.DEPENDENCY_THRESH: 0.5,
+                    heuristics_miner.Variants.CLASSIC.value.Parameters.MIN_ACT_COUNT: 1,
+                    heuristics_miner.Variants.CLASSIC.value.Parameters.MIN_DFG_OCCURRENCES: 1
+                })
+                
+                # Convert to Petri net
+                from pm4py.objects.conversion.heuristics_net import converter as hn_converter
+                net, initial_marking, final_marking = hn_converter.apply(heu_net)
+            except AttributeError:
+                # Fallback for older PM4Py versions
+                heu_net = heuristics_miner.apply(log)
+                from pm4py.objects.conversion.heuristics_net import converter as hn_converter
+                net, initial_marking, final_marking = hn_converter.apply(heu_net)
             
             print(f"Heuristics miner discovered model with {len(net.places)} places and {len(net.transitions)} transitions")
             

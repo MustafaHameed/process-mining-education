@@ -134,7 +134,7 @@ class EducationalProcessMiningAnalysis:
         
         summary_report = self.generate_executive_summary(results)
         
-        # Save summary report
+        # Save summary report with UTF-8 encoding
         summary_path = os.path.join(self.output_dir, f'executive_summary_{self.timestamp}.txt')
         with open(summary_path, 'w', encoding='utf-8') as f:
             f.write(summary_report)

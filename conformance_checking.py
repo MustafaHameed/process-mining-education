@@ -487,9 +487,9 @@ class ConformanceChecker:
         report = self.generate_conformance_report(sequence_conformance, behavioral_conformance, 
                                                 deviations, reference_patterns)
         
-        # Save report
+        # Save report with UTF-8 encoding
         report_path = os.path.join(self.output_dir, 'conformance_analysis_report.txt')
-        with open(report_path, 'w') as f:
+        with open(report_path, 'w', encoding='utf-8') as f:
             f.write(report)
         
         print(f"Conformance analysis complete. Report saved to {report_path}")

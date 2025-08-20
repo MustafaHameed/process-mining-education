@@ -512,9 +512,9 @@ class PerformanceAnalysis:
         print("Generating performance report...")
         report = self.generate_performance_report(metrics_df, patterns, learning_paths, session_analysis)
         
-        # Save report
+        # Save report with UTF-8 encoding to handle special characters
         report_path = os.path.join(self.output_dir, 'performance_analysis_report.txt')
-        with open(report_path, 'w') as f:
+        with open(report_path, 'w', encoding='utf-8') as f:
             f.write(report)
         
         print(f"Performance analysis complete. Report saved to {report_path}")
