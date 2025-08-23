@@ -36,14 +36,24 @@ def display_analysis_panel(patterns):
     # Display rework patterns
     if "rework_patterns" in patterns:
         st.subheader("Rework Patterns")
-        fig = px.bar(
-            patterns["rework_patterns"],
-            x="activity",
-            y="rework_count",
-            labels={"activity": "Activity", "rework_count": "Rework Count"},
-            title="Activities with Rework"
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        
+        # Check if there are any rework patterns
+        if not patterns["rework_patterns"].empty:
+            try:
+                # Create bar chart
+                fig = px.bar(
+                    patterns["rework_patterns"],
+                    x="activity",
+                    y="rework_count",
+                    labels={"activity": "Activity", "rework_count": "Rework Count"},
+                    title="Activities with Rework"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error creating rework chart: {str(e)}")
+                st.dataframe(patterns["rework_patterns"])
+        else:
+            st.info("No rework patterns detected in the process")
     
     # Display anomalies if they exist
     if "anomalies" in patterns and not patterns["anomalies"].empty:

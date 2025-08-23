@@ -36,10 +36,12 @@ def analyze_patterns(event_log):
     for i, (variant, traces) in enumerate(sorted_variants):
         if i < 5:
             variant_name = f"Variant {i+1}"
+            # Convert tuple variant to string if needed
+            variant_str = ",".join(variant) if isinstance(variant, tuple) else variant
             variant_distribution.append({
                 "variant": variant_name,
                 "count": len(traces),
-                "activities": variant
+                "activities": variant_str
             })
         else:
             other_count += len(traces)
@@ -59,7 +61,23 @@ def analyze_patterns(event_log):
     sequence_counts = defaultdict(int)
     
     for trace in event_log:
-        activities = [event["concept:name"] for event in trace]
+        # Extract activity names from the trace
+        activities = []
+        for event in trace:
+            # Handle different PM4Py versions and event formats
+            if isinstance(event, dict):
+                activity = event.get("concept:name")
+            else:
+                # For newer PM4Py versions where events might be objects
+                try:
+                    activity = event["concept:name"]
+                except (TypeError, KeyError):
+                    continue
+                    
+            if activity:
+                activities.append(activity)
+                
+        # Count sequences (bigrams)
         for i in range(len(activities) - 1):
             sequence = f"{activities[i]} → {activities[i+1]}"
             sequence_counts[sequence] += 1
@@ -78,9 +96,24 @@ def analyze_patterns(event_log):
     rework_counts = defaultdict(int)
     
     for trace in event_log:
-        activities = [event["concept:name"] for event in trace]
-        seen_activities = set()
+        # Extract activity names safely handling different event formats
+        activities = []
+        for event in trace:
+            # Handle different PM4Py versions and event formats
+            if isinstance(event, dict):
+                activity = event.get("concept:name")
+            else:
+                # For newer PM4Py versions where events might be objects
+                try:
+                    activity = event["concept:name"]
+                except (TypeError, KeyError):
+                    continue
+                    
+            if activity:
+                activities.append(activity)
         
+        # Count rework instances
+        seen_activities = set()
         for activity in activities:
             if activity in seen_activities:
                 rework_counts[activity] += 1
@@ -95,6 +128,13 @@ def analyze_patterns(event_log):
                 "rework_count": rework_count
             })
     
+    # If rework_patterns is empty, add a placeholder row to avoid plotting errors
+    if not rework_patterns:
+        rework_patterns.append({
+            "activity": "No Rework",
+            "rework_count": 0
+        })
+    
     results["rework_patterns"] = pd.DataFrame(rework_patterns)
     
     # Detect potential anomalies (very rare variants)
@@ -102,13 +142,17 @@ def analyze_patterns(event_log):
     median_length = median([len(trace) for trace in event_log])
     
     for variant, traces in variants.items():
+        # In PM4Py 2.x, variant might be a tuple of activities rather than a comma-separated string
+        variant_length = len(variant) if isinstance(variant, tuple) else len(variant.split(","))
+        
         # Consider it anomalous if it's rare and unusually long or short
-        if len(traces) == 1 and abs(len(variant.split(",")) - median_length) > 3:
+        if len(traces) == 1 and abs(variant_length - median_length) > 3:
             case_id = traces[0].attributes["concept:name"]
+            variant_str = ",".join(variant) if isinstance(variant, tuple) else variant
             anomalies.append({
                 "case_id": case_id,
-                "variant": variant,
-                "length": len(variant.split(",")),
+                "variant": variant_str,
+                "length": variant_length,
                 "reason": "Unusual length"
             })
     
