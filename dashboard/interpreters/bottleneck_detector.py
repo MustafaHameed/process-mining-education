@@ -7,7 +7,7 @@ def detect_bottlenecks(event_log):
     Detect bottlenecks in the process.
     
     Args:
-        event_log: PM4Py event log
+        event_log: PM4Py event log or pandas DataFrame
         
     Returns:
         DataFrame with bottleneck analysis
@@ -22,39 +22,153 @@ def detect_bottlenecks(event_log):
     activity_durations = {}
     waiting_times = {}
     
-    for trace in event_log:
-        case_activities = {}
-        ordered_events = sorted(trace, key=lambda e: e["time:timestamp"])
-        
-        for i, event in enumerate(ordered_events):
-            activity = event["concept:name"]
-            timestamp = event["time:timestamp"]
+    # Handle different event log formats
+    if isinstance(event_log, pd.DataFrame):
+        if 'case:concept:name' in event_log.columns and 'concept:name' in event_log.columns and 'time:timestamp' in event_log.columns:
+            # Make sure timestamp is datetime
+            if not pd.api.types.is_datetime64_any_dtype(event_log['time:timestamp']):
+                try:
+                    event_log['time:timestamp'] = pd.to_datetime(event_log['time:timestamp'])
+                except:
+                    # Return empty results if we can't process timestamps
+                    return pd.DataFrame({
+                        "element": ["No bottlenecks found"],
+                        "type": ["None"],
+                        "metric": ["None"],
+                        "value_seconds": [0],
+                        "value_formatted": ["0 seconds"],
+                        "occurrences": [0],
+                        "analysis_date": [analysis_metadata["timestamp"]],
+                        "analyst": [analysis_metadata["analyst"]]
+                    })
             
-            # Check if this is a completion event (last occurrence of this activity in the case)
-            if i == len(ordered_events) - 1 or ordered_events[i+1]["concept:name"] != activity:
-                if activity in case_activities:
-                    # Calculate duration - time between first and last occurrence of the activity
-                    duration = timestamp - case_activities[activity]
-                    
-                    if activity not in activity_durations:
-                        activity_durations[activity] = []
-                    
-                    activity_durations[activity].append(duration.total_seconds())
+            # Process each case
+            for case_id, case_df in event_log.groupby('case:concept:name'):
+                # Sort by timestamp
+                case_df = case_df.sort_values('time:timestamp')
                 
-                # Calculate waiting time to next activity
-                if i < len(ordered_events) - 1:
-                    next_activity = ordered_events[i+1]["concept:name"]
-                    waiting_time = ordered_events[i+1]["time:timestamp"] - timestamp
+                # Track activities in the case
+                case_activities = {}
+                
+                # Process events
+                for i, (_, event) in enumerate(case_df.iterrows()):
+                    activity = event['concept:name']
+                    timestamp = event['time:timestamp']
                     
-                    transition = f"{activity} → {next_activity}"
-                    if transition not in waiting_times:
-                        waiting_times[transition] = []
+                    # Check if this is a completion event (last occurrence of activity in case)
+                    if i == len(case_df) - 1 or case_df.iloc[i+1]['concept:name'] != activity:
+                        if activity in case_activities:
+                            # Calculate duration
+                            duration = timestamp - case_activities[activity]
+                            
+                            if activity not in activity_durations:
+                                activity_durations[activity] = []
+                            
+                            activity_durations[activity].append(duration.total_seconds())
+                        
+                        # Calculate waiting time to next activity
+                        if i < len(case_df) - 1:
+                            next_activity = case_df.iloc[i+1]['concept:name']
+                            waiting_time = case_df.iloc[i+1]['time:timestamp'] - timestamp
+                            
+                            transition = f"{activity} → {next_activity}"
+                            if transition not in waiting_times:
+                                waiting_times[transition] = []
+                            
+                            waiting_times[transition].append(waiting_time.total_seconds())
                     
-                    waiting_times[transition].append(waiting_time.total_seconds())
-            
-            # Record first occurrence of each activity in the case
-            if activity not in case_activities:
-                case_activities[activity] = timestamp
+                    # Record first occurrence of each activity in the case
+                    if activity not in case_activities:
+                        case_activities[activity] = timestamp
+        else:
+            # Not properly formatted DataFrame
+            return pd.DataFrame({
+                "element": ["Missing required columns"],
+                "type": ["Error"],
+                "metric": ["None"],
+                "value_seconds": [0],
+                "value_formatted": ["0 seconds"],
+                "occurrences": [0],
+                "analysis_date": [analysis_metadata["timestamp"]],
+                "analyst": [analysis_metadata["analyst"]]
+            })
+    else:
+        # Try PM4Py EventLog format
+        try:
+            for trace in event_log:
+                # Extract events with timestamps
+                ordered_events = []
+                
+                for event in trace:
+                    try:
+                        # Safe access to event attributes
+                        if isinstance(event, dict):
+                            activity = event.get("concept:name")
+                            timestamp = event.get("time:timestamp")
+                        else:
+                            activity = event["concept:name"]
+                            timestamp = event["time:timestamp"]
+                        
+                        if activity is not None and timestamp is not None:
+                            ordered_events.append((activity, timestamp))
+                    except (TypeError, KeyError, AttributeError):
+                        continue
+                
+                # Sort events by timestamp
+                ordered_events.sort(key=lambda x: x[1])
+                
+                # Track activities in the case
+                case_activities = {}
+                
+                # Process events
+                for i, (activity, timestamp) in enumerate(ordered_events):
+                    # Check if this is a completion event
+                    if i == len(ordered_events) - 1 or ordered_events[i+1][0] != activity:
+                        if activity in case_activities:
+                            # Calculate duration
+                            try:
+                                duration = timestamp - case_activities[activity]
+                                duration_seconds = duration.total_seconds()
+                                
+                                if activity not in activity_durations:
+                                    activity_durations[activity] = []
+                                
+                                activity_durations[activity].append(duration_seconds)
+                            except (TypeError, AttributeError):
+                                # Skip if we can't calculate duration
+                                pass
+                        
+                        # Calculate waiting time to next activity
+                        if i < len(ordered_events) - 1:
+                            next_activity, next_timestamp = ordered_events[i+1]
+                            try:
+                                waiting_time = next_timestamp - timestamp
+                                waiting_seconds = waiting_time.total_seconds()
+                                
+                                transition = f"{activity} → {next_activity}"
+                                if transition not in waiting_times:
+                                    waiting_times[transition] = []
+                                
+                                waiting_times[transition].append(waiting_seconds)
+                            except (TypeError, AttributeError):
+                                # Skip if we can't calculate waiting time
+                                pass
+                    
+                    # Record first occurrence of each activity in the case
+                    if activity not in case_activities:
+                        case_activities[activity] = timestamp
+        except Exception as e:
+            # Return empty results if we can't process the event log
+            return pd.DataFrame({
+                "element": [f"Error: {str(e)}"],
+                "type": ["Error"],
+                "metric": ["None"],
+                "value_seconds": [0],
+                "value_formatted": ["0 seconds"],
+                "occurrences": [0],
+                "analysis_date": [analysis_metadata["timestamp"]],
+                "analyst": [analysis_metadata["analyst"]]
+            })
     
     # Calculate average durations
     avg_durations = []
@@ -103,6 +217,17 @@ def detect_bottlenecks(event_log):
             "value_seconds": item["avg_waiting_seconds"],
             "value_formatted": item["avg_waiting_formatted"],
             "occurrences": item["count"]
+        })
+    
+    # If no bottlenecks found, add a placeholder
+    if not bottlenecks:
+        bottlenecks.append({
+            "element": "No bottlenecks found",
+            "type": "None",
+            "metric": "None",
+            "value_seconds": 0,
+            "value_formatted": "0 seconds",
+            "occurrences": 0
         })
     
     # Add analysis metadata to each row

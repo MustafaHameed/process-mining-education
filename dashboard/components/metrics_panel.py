@@ -5,12 +5,25 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import timedelta, datetime
 
+def _safe_get(event, key):
+    """Safely get an attribute from a PM4Py event or dict-like object."""
+    try:
+        # pm4py Event behaves like dict and has get
+        if hasattr(event, 'get'):
+            return event.get(key, None)
+        if isinstance(event, dict):
+            return event.get(key, None)
+        # Fallback to mapping access
+        return event[key]
+    except Exception:
+        return None
+
 def display_metrics_panel(event_log):
     """
     Display a panel with key process mining metrics.
     
     Args:
-        event_log: PM4Py event log
+        event_log: PM4Py event log or pandas DataFrame
     """
     # Calculate key metrics
     metrics = calculate_process_metrics(event_log)

@@ -102,7 +102,7 @@ class EducationalProcessMiningAnalysis:
         }
         
         # Step 2: Process Discovery
-        print("\\nSTEP 2: PROCESS DISCOVERY")
+        print("\nSTEP 2: PROCESS DISCOVERY")
         print("-" * 30)
         
         discovery_results = self.process_discovery.discover_all_models(quality_log)
@@ -111,7 +111,7 @@ class EducationalProcessMiningAnalysis:
         results['process_discovery'] = discovery_results
         
         # Step 3: Performance Analysis
-        print("\\nSTEP 3: PERFORMANCE ANALYSIS")
+        print("\nSTEP 3: PERFORMANCE ANALYSIS")
         print("-" * 32)
         
         performance_results = self.performance_analysis.run_complete_analysis(quality_log)
@@ -120,7 +120,7 @@ class EducationalProcessMiningAnalysis:
         results['performance_analysis'] = performance_results
         
         # Step 4: Conformance Checking
-        print("\\nSTEP 4: CONFORMANCE CHECKING")
+        print("\nSTEP 4: CONFORMANCE CHECKING")
         print("-" * 32)
         
         conformance_results = self.conformance_checker.run_complete_conformance_check(quality_log)
@@ -129,7 +129,7 @@ class EducationalProcessMiningAnalysis:
         results['conformance_checking'] = conformance_results
         
         # Step 5: Generate Summary Report
-        print("\\nSTEP 5: GENERATING SUMMARY REPORT")
+        print("\nSTEP 5: GENERATING SUMMARY REPORT")
         print("-" * 38)
         
         summary_report = self.generate_executive_summary(results)
@@ -144,12 +144,12 @@ class EducationalProcessMiningAnalysis:
         results['executive_summary'] = summary_report
         
         # Final summary
-        print("\\n" + "=" * 60)
+        print("\n" + "=" * 60)
         print("ANALYSIS COMPLETE")
         print("=" * 60)
         print(f"Total processing time: {datetime.now()}")
         print(f"All outputs saved to: {self.output_dir}")
-        print("\\nGenerated files:")
+        print("\nGenerated files:")
         self.list_output_files()
         
         return results
@@ -298,7 +298,7 @@ class EducationalProcessMiningAnalysis:
         summary.append("")
         summary.append("=" * 70)
         
-        return "\\n".join(summary)
+        return "\n".join(summary)
     
     def list_output_files(self):
         """List all generated output files."""
@@ -421,7 +421,7 @@ def main():
         # Create HTML index
         analysis.create_analysis_index()
         
-        print("\\n🎉 Analysis completed successfully!")
+        print("\n🎉 Analysis completed successfully!")
         print(f"📁 Check the '{args.output}' directory for all results")
         print(f"🌐 Open '{args.output}/index.html' for a complete overview")
         

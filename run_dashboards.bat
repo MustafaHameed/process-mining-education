@@ -9,7 +9,7 @@ echo.
 
 :: Start both dashboards in separate terminals
 start "Minimal Dashboard" cmd /k "cd %~dp0 && streamlit run dashboard/minimal_app.py --server.port 8501"
-start "Enhanced Dashboard" cmd /k "cd %~dp0 && streamlit run dashboard\enhanced_app_main_tabs.py --server.port 8502"
+start "Enhanced Dashboard" cmd /k "cd %~dp0 && streamlit run dashboard/enhanced_app.py --server.port 8502"
 
 echo Both dashboards are now running.
 echo.
