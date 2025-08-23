@@ -12,7 +12,7 @@ $currentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Start both dashboards in separate terminals
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$currentDir'; streamlit run dashboard/minimal_app.py --server.port 8501"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$currentDir'; streamlit run dashboard\enhanced_app_main_tabs.py --server.port 8502"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$currentDir'; streamlit run dashboard\enhanced_app.py --server.port 8502"
 
 Write-Host "Both dashboards are now running." -ForegroundColor Green
 Write-Host ""

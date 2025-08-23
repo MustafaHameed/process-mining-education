@@ -333,3 +333,6 @@ def median(values):
         return (sorted_values[n//2 - 1] + sorted_values[n//2]) / 2
     else:
         return sorted_values[n//2]
+
+# Deprecated: use dashboard.interpreters.pattern_analyzer instead.
+raise RuntimeError("Deprecated module. Use 'dashboard.interpreters.pattern_analyzer'.")

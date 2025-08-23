@@ -4,7 +4,7 @@ streamlit>=1.24.0
 pandas>=1.5.3
 numpy>=1.24.3
 plotly>=5.14.1
-networkx>=3.1
+networkx>=2.8.0
 
 # For visualization
 matplotlib>=3.7.1
@@ -16,3 +16,6 @@ openpyxl>=3.1.2
 
 # For interactive dashboards
 st-annotated-text>=4.0.0
+scikit-learn>=1.2.0
+graphviz>=0.20.1
+pydotplus>=2.0.2

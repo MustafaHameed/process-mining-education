@@ -498,3 +498,6 @@ def display_dashboard(event_log, raw_data=None):
 
 if __name__ == "__main__":
     main()
+
+# Deprecated: consolidated into dashboard package with two entrypoints.
+raise RuntimeError("Deprecated module. Use 'dashboard/enhanced_app.py'.")

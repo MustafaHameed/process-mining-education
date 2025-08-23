@@ -291,5 +291,8 @@ def display_dashboard(event_log, raw_data=None, sessions_info=None):
     st.markdown("---")
     st.caption(f"Analysis performed on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Dashboard by {AUTHOR}")
 
+# Deprecated: consolidated into dashboard package with two entrypoints.
+raise RuntimeError("Deprecated module. Use 'dashboard/minimal_app.py' or 'dashboard/enhanced_app.py'.")
+
 if __name__ == "__main__":
     main()

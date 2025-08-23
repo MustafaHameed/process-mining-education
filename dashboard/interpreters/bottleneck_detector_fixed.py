@@ -247,3 +247,6 @@ def format_duration(seconds):
         return f"{seconds/3600:.1f} hours"
     else:
         return f"{seconds/86400:.1f} days"
+
+# Deprecated: use dashboard.interpreters.bottleneck_detector instead.
+raise RuntimeError("Deprecated module. Use 'dashboard.interpreters.bottleneck_detector'.")

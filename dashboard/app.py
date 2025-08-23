@@ -150,4 +150,4 @@ def display_dashboard(event_log):
     st.caption(f"Analysis performed on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Dashboard by {AUTHOR}")
 
 if __name__ == "__main__":
-    main()
+    raise RuntimeError("Deprecated module. Use 'dashboard/minimal_app.py' or 'dashboard/enhanced_app.py'.")

@@ -1,22 +1,52 @@
-# Process Mining Educational Dashboard
+# Process Mining Education
 
-An interactive dashboard for process mining education with advanced visualization and automated interpretation.
+Two Streamlit dashboards plus a reproducible analysis pipeline for the Educational Process Mining (EPM) dataset.
 
-## Last Updated
-**Date:** 2025-08-20 09:36:40  
-**Author:** MustafaHameed
+## What’s in here
 
-## Features
+- Dashboards (Streamlit):
+  - Minimal dashboard at `dashboard/minimal_app.py` (port 8501)
+  - Enhanced dashboard at `dashboard/enhanced_app.py` (port 8502)
+- Reusable modules under `dashboard/components` and `dashboard/interpreters`
+- Analysis scripts: `data_preprocessing.py`, `process_discovery.py`, `performance_analysis.py`, `conformance_checking.py`
 
-- **Interactive Process Maps**: Visualize process flows with detailed activity relationships
-- **Performance Metrics**: Analyze key process metrics and identify bottlenecks
-- **Pattern Recognition**: Discover and interpret process variants and patterns
-- **Conformance Checking**: Compare actual processes to reference models
-- **Educational Insights**: Learn process mining concepts through guided interpretation
+## Quick start
 
-## Installation
+1) Install Python 3.10+ and dependencies:
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/MustafaHameed/process-mining-education.git
-   cd process-mining-education
+   - Option A: pip
+   - Option B: a virtual environment is recommended
+
+2) Install packages:
+
+   pip install -r requirements.txt
+
+3) Run both dashboards on Windows:
+
+   - Double‑click `run_dashboards.bat`, or
+   - Right‑click `run_dashboards.ps1` → Run with PowerShell
+
+   Then open:
+   - Minimal: http://localhost:8501
+   - Enhanced: http://localhost:8502
+
+## Graphviz note (for process visualizations)
+
+Some visualizations require the Graphviz system package in addition to the Python package. On Windows:
+
+1) Download Graphviz from https://graphviz.org/download/
+2) Install it and add its bin folder (e.g., `C:\Program Files\Graphviz\bin`) to your PATH
+
+If Graphviz isn’t installed, certain PM4Py/graph exports may fail.
+
+## Smoke tests
+
+- Run pipeline once to generate outputs:
+  - PowerShell: `python .\main.py --dataset "EPM Dataset 2" --output output`
+- Launch dashboards and verify they start and load a CSV
+
+## Repo layout
+
+- `dashboard/` – Streamlit apps and shared components
+- `output/` – Generated charts and reports
+- `EPM Dataset 2/` – Included sample dataset

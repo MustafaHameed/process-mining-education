@@ -189,3 +189,6 @@ def generate_process_map(event_log):
                  ))
     
     return fig
+
+# Deprecated: use dashboard.components.process_map instead.
+raise RuntimeError("Deprecated module. Use 'dashboard.components.process_map'.")

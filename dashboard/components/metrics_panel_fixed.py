@@ -301,3 +301,6 @@ def calculate_process_metrics(event_log):
             metrics["case_durations_df"] = pd.DataFrame({"duration_days": [0]})
     
     return metrics
+
+# Deprecated: use dashboard.components.metrics_panel instead.
+raise RuntimeError("Deprecated module. Use 'dashboard.components.metrics_panel'.")

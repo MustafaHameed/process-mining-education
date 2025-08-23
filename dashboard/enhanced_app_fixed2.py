@@ -506,4 +506,4 @@ def display_dashboard(event_log, raw_data=None):
     st.markdown(f"<div class='dashboard-footer'>Analysis performed on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Dashboard by {AUTHOR}</div>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    main()
+    raise RuntimeError("Deprecated module. Use 'dashboard/enhanced_app.py'.")
