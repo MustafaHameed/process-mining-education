@@ -15,14 +15,14 @@ sys.path.append(str(Path(__file__).parent.parent))
 from data_preprocessing import EPMDataProcessor
 
 # Import dashboard components
-from components.process_map import generate_process_map
-from components.metrics_panel_fixed import display_metrics_panel
-from components.analysis_panel import display_analysis_panel
+from dashboard.components.process_map import generate_process_map
+from dashboard.components.metrics_panel import display_metrics_panel
+from dashboard.components.analysis_panel import display_analysis_panel
 
 # Import interpreters using relative imports
-from interpreters.pattern_analyzer import analyze_patterns
-from interpreters.bottleneck_detector_fixed import detect_bottlenecks
-from interpreters.conformance_analyzer import analyze_conformance
+from dashboard.interpreters.pattern_analyzer import analyze_patterns
+from dashboard.interpreters.bottleneck_detector import detect_bottlenecks
+from dashboard.interpreters.conformance_analyzer import analyze_conformance
 
 # Dashboard metadata
 LAST_UPDATED = "2025-08-22 16:30:00"

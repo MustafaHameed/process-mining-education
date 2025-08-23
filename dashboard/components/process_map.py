@@ -9,13 +9,36 @@ def generate_process_map(event_log):
     Generate an interactive process map visualization using Plotly.
     
     Args:
-        event_log: PM4Py event log
+        event_log: PM4Py event log or DataFrame
         
     Returns:
         Plotly figure object
     """
+    # Handle different types of event logs
+    if isinstance(event_log, pd.DataFrame):
+        # If it's a DataFrame, ensure it has the required columns
+        if not all(col in event_log.columns for col in ['case:concept:name', 'concept:name', 'time:timestamp']):
+            raise ValueError("DataFrame must contain 'case:concept:name', 'concept:name', and 'time:timestamp' columns")
+    
     # Discover process model (directly-follows graph)
-    dfg, start_activities, end_activities = pm4py.discover_directly_follows_graph(event_log)
+    try:
+        dfg, start_activities, end_activities = pm4py.discover_directly_follows_graph(event_log)
+    except Exception as e:
+        # Convert DataFrame to EventLog if needed
+        if isinstance(event_log, pd.DataFrame):
+            try:
+                # Try to convert the DataFrame to a PM4Py format
+                event_log_converted = pm4py.format_dataframe(
+                    event_log,
+                    case_id='case:concept:name',
+                    activity_key='concept:name',
+                    timestamp_key='time:timestamp'
+                )
+                dfg, start_activities, end_activities = pm4py.discover_directly_follows_graph(event_log_converted)
+            except Exception as conv_error:
+                raise ValueError(f"Failed to process event log: {str(conv_error)}")
+        else:
+            raise ValueError(f"Failed to discover directly-follows graph: {str(e)}")
     
     # Convert to networkx graph for layout calculation
     G = nx.DiGraph()
@@ -70,12 +93,33 @@ def generate_process_map(event_log):
     node_size = []
     node_color = []
     
-    # Calculate activity frequencies
+    # Calculate activity frequencies - handle different event log formats
     activity_counts = {}
-    for trace in event_log:
-        for event in trace:
-            activity = event["concept:name"]
-            activity_counts[activity] = activity_counts.get(activity, 0) + 1
+    
+    if isinstance(event_log, pd.DataFrame):
+        if 'concept:name' in event_log.columns:
+            activity_counts = event_log['concept:name'].value_counts().to_dict()
+    else:
+        # Try PM4Py EventLog object
+        try:
+            for trace in event_log:
+                for event in trace:
+                    try:
+                        # Handle both dict-like access and attribute access
+                        if isinstance(event, dict):
+                            activity = event.get("concept:name")
+                        else:
+                            activity = event["concept:name"]
+                            
+                        if activity is not None:
+                            activity_counts[activity] = activity_counts.get(activity, 0) + 1
+                    except (TypeError, KeyError, AttributeError):
+                        continue
+        except Exception as e:
+            # If we can't extract activity counts, use DFG frequency instead
+            for (act1, act2), weight in dfg.items():
+                activity_counts[act1] = activity_counts.get(act1, 0) + weight
+                activity_counts[act2] = activity_counts.get(act2, 0) + weight
     
     max_count = max(activity_counts.values()) if activity_counts else 1
     
@@ -125,8 +169,7 @@ def generate_process_map(event_log):
     # Create figure
     fig = go.Figure(data=[edge_trace, node_trace],
                  layout=go.Layout(
-                    title='Interactive Process Map',
-                    titlefont=dict(size=16),
+                    title=dict(text="Process Map - Educational Activity Flow", font=dict(size=16)),
                     showlegend=False,
                     hovermode='closest',
                     margin=dict(b=20,l=5,r=5,t=40),
@@ -135,7 +178,7 @@ def generate_process_map(event_log):
                     height=600,
                     annotations=[
                         dict(
-                            text=f"Created: 2025-08-20 | By: MustafaHameed",
+                            text=f"Created: 2025-08-22 | By: MustafaHameed",
                             showarrow=False,
                             xref="paper", yref="paper",
                             x=0.01, y=-0.05,
