@@ -13,14 +13,14 @@ import zipfile
 import re
 
 # Import visualization components using relative imports
-from components.process_map import generate_process_map
-from components.metrics_panel import display_metrics_panel
-from components.analysis_panel import display_analysis_panel
+from .components.process_map import generate_process_map
+from .components.metrics_panel import display_metrics_panel
+from .components.analysis_panel import display_analysis_panel
 
 # Import interpreters using relative imports
-from interpreters.bottleneck_detector import detect_bottlenecks
-from interpreters.conformance_analyzer import analyze_conformance
-from interpreters.pattern_analyzer import analyze_patterns
+from .interpreters.bottleneck_detector import detect_bottlenecks
+from .interpreters.conformance_analyzer import analyze_conformance
+from .interpreters.pattern_analyzer import analyze_patterns
 
 # Constants
 AUTHOR = "Educational Process Mining Team"
