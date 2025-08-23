@@ -1,306 +1,209 @@
 import streamlit as st
 import pandas as pd
-import pm4py
+import numpy as np
+import plotly.express as px
 import plotly.graph_objects as go
-import networkx as nx
-from pathlib import Path
-import sys
 import os
+import pm4py
+from pm4py.objects.conversion.log import converter as log_converter
 from datetime import datetime
+import tempfile
+import io
+import zipfile
+import re
 
-# Add the parent directory to the path to import from the main module
-sys.path.append(str(Path(__file__).parent.parent))
-
-# Import data preprocessing
-from data_preprocessing import EPMDataProcessor
-
-# Import dashboard components
+# Import visualization components
 from components.process_map import generate_process_map
-from components.metrics_panel_fixed import display_metrics_panel
+from components.metrics_panel import display_metrics_panel
 from components.analysis_panel import display_analysis_panel
 
-# Import interpreters using relative imports
-from interpreters.pattern_analyzer import analyze_patterns
-from interpreters.bottleneck_detector_fixed import detect_bottlenecks
+# Import interpreters
+from interpreters.bottleneck_detector import detect_bottlenecks
 from interpreters.conformance_analyzer import analyze_conformance
+from interpreters.pattern_analyzer import analyze_patterns
 
-# Dashboard metadata
-LAST_UPDATED = "2025-08-22 16:30:00"
+# Constants
 AUTHOR = "MustafaHameed"
+LAST_UPDATED = "2025-01-28"
 
+# Page config
 st.set_page_config(
-    page_title="Process Mining Educational Dashboard - Enhanced",
-    page_icon="📊",
+    page_title="Educational Process Mining Dashboard - Enhanced",
+    page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# CSS for styling
+# Custom CSS
 st.markdown("""
 <style>
     .enhanced-header {
-        color: #2196F3;
-        border-bottom: 2px solid #2196F3;
-        padding-bottom: 10px;
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1E88E5;
+        margin-bottom: 1rem;
+    }
+    .dashboard-subtitle {
+        font-size: 1.2rem;
+        font-weight: 400;
+        color: #424242;
+        margin-bottom: 2rem;
+    }
+    .dashboard-section {
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1rem;
+    }
+    .dashboard-footer {
+        font-size: 0.8rem;
+        color: #9E9E9E;
+        text-align: center;
+        margin-top: 2rem;
     }
     .port-info {
         background-color: #f0f2f6;
         padding: 10px;
         border-radius: 5px;
-        border-left: 5px solid #2196F3;
+        border-left: 5px solid #1E88E5;
     }
-    .dashboard-footer {
-        margin-top: 20px;
-        padding-top: 10px;
-        border-top: 1px solid #e6e6e6;
-        color: #666;
-        font-size: 0.8em;
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+        font-size: 1.2rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
-def main():
-    st.markdown("<h1 class='enhanced-header'>Process Mining Educational Dashboard - Enhanced Version</h1>", unsafe_allow_html=True)
-    st.caption(f"Last updated: {LAST_UPDATED} | Author: {AUTHOR}")
-    st.markdown("<div class='port-info'>Running on port 8502</div>", unsafe_allow_html=True)
-    
-    # Create a 2-column layout: sidebar for config, main area for content
-    with st.sidebar:
-        st.header("Configuration")
+
+def load_epm_dataset(dataset_path="EPM Dataset 2", selected_sessions=None):
+    """Load and process EPM dataset"""
+    try:
+        # Add the parent directory to the path to import from the main module
+        import sys
+        from pathlib import Path
+        sys.path.append(str(Path(__file__).parent.parent))
+        from data_preprocessing import EPMDataProcessor
         
-        # Dataset selection tabs
-        dataset_tab1, dataset_tab2 = st.tabs(["EPM Dataset", "Custom Upload"])
+        processor = EPMDataProcessor(dataset_path)
+        raw_data = processor.load_all_data()
         
-        with dataset_tab1:
-            # Option to load built-in EPM dataset
-            use_builtin_dataset = st.checkbox("Use built-in EPM Dataset", value=True)
+        if raw_data.empty:
+            return None, None, 0, 0
             
-            if use_builtin_dataset:
-                # Dataset path configuration
-                dataset_path = "EPM Dataset 2"
-                if os.path.exists(dataset_path):
-                    st.success(f"EPM Dataset found at {dataset_path}")
-                    
-                    # Configure session filtering
-                    st.subheader("Session Configuration")
-                    include_all_sessions = st.checkbox("Include all sessions", value=True)
-                    if not include_all_sessions:
-                        available_sessions = ["Session 1", "Session 2", "Session 3", "Session 4", "Session 5", "Session 6"]
-                        selected_sessions = st.multiselect(
-                            "Select sessions to analyze", 
-                            available_sessions,
-                            default=["Session 1"]
-                        )
-                    else:
-                        selected_sessions = ["Session 1", "Session 2", "Session 3", "Session 4", "Session 5", "Session 6"]
-                    
-                    # Quality filtering options
-                    st.subheader("Filtering Options")
-                    min_events_per_case = st.slider(
-                        "Minimum events per case", 
-                        min_value=1, 
-                        max_value=20, 
-                        value=5,
-                        help="Filter out cases with fewer events than this threshold"
-                    )
-                    
-                    exclude_blank_other = st.checkbox("Exclude 'Blank' and 'Other' activities", value=True)
-                    exclude_activities = ["Blank", "Other"] if exclude_blank_other else []
-                    
-                    # Process the dataset when button is clicked
-                    if st.button("Process EPM Dataset", key="process_epm"):
-                        with st.spinner("Loading and processing EPM dataset..."):
-                            # Create data processor
-                            processor = EPMDataProcessor(dataset_path)
-                            
-                            # Load only the selected sessions
-                            processor.sessions = selected_sessions
-                            
-                            # Load raw data
-                            raw_data = processor.load_all_data()
-                            
-                            if raw_data.empty:
-                                st.error("Failed to load dataset. Please check the dataset path.")
-                            else:
-                                # Create event log
-                                event_log = processor.create_event_log(raw_data)
-                                
-                                # Extract session information
-                                session_info_dict = {}
-                                
-                                # Create mapping of case_id to session
-                                for _, row in raw_data.iterrows():
-                                    if 'case_id' in row and 'session' in row:
-                                        case_id = row['case_id']
-                                        session = row['session']
-                                        session_info_dict[case_id] = f"Session {session}"
-                                
-                                # PM4Py might handle event logs differently depending on version
-                                # We'll adapt to multiple formats
-                                
-                                # Check if event_log is a DataFrame
-                                if isinstance(event_log, pd.DataFrame):
-                                    if 'case:concept:name' in event_log.columns:
-                                        # Add session info as a column
-                                        event_log['session_info'] = event_log['case:concept:name'].map(
-                                            lambda x: session_info_dict.get(x, "Unknown"))
-                                else:
-                                    # Try to handle as PM4Py EventLog object 
-                                    try:
-                                        # Add session info to trace attributes if possible
-                                        for trace in event_log:
-                                            try:
-                                                if hasattr(trace, 'attributes'):
-                                                    case_id = trace.attributes["concept:name"]
-                                                    if case_id in session_info_dict:
-                                                        trace.attributes["session_info"] = session_info_dict[case_id]
-                                                        
-                                                        # Add to events as well
-                                                        for event in trace:
-                                                            event["session_info"] = session_info_dict[case_id]
-                                            except Exception as e:
-                                                st.warning(f"Could not process trace: {e}")
-                                                continue
-                                    except Exception as e:
-                                        st.warning(f"Event log format is not as expected: {e}")
-                                
-                                # Apply quality filters
-                                quality_log = processor.filter_by_criteria(
-                                    event_log, 
-                                    min_events_per_case=min_events_per_case,
-                                    exclude_activities=exclude_activities
-                                )
-                                
-                                # Verify sessions are preserved (adapt to different event log formats)
-                                preserved_sessions = set()
-                                
-                                # Check if quality_log is a DataFrame
-                                if isinstance(quality_log, pd.DataFrame):
-                                    if 'session_info' in quality_log.columns:
-                                        preserved_sessions = set(quality_log['session_info'].unique())
-                                    elif 'session' in quality_log.columns:
-                                        preserved_sessions = set(f"Session {s}" for s in quality_log['session'].unique())
-                                else:
-                                    # Try to handle as PM4Py EventLog object
-                                    try:
-                                        for trace in quality_log:
-                                            try:
-                                                if hasattr(trace, 'attributes') and "session_info" in trace.attributes:
-                                                    preserved_sessions.add(trace.attributes["session_info"])
-                                            except:
-                                                continue
-                                    except:
-                                        # If we can't determine preserved sessions, just continue
-                                        pass
-                                
-                                if preserved_sessions and len(preserved_sessions) < len(selected_sessions):
-                                    st.warning(f"Some sessions were lost during filtering. Keeping {len(preserved_sessions)} out of {len(selected_sessions)} sessions.")
-                                
-                                # Process the log for dashboard display
-                                display_dashboard(quality_log, raw_data)
-                else:
-                    st.error(f"EPM Dataset not found at {dataset_path}. Please check the path.")
+        # Filter by sessions if specified
+        if selected_sessions:
+            raw_data = raw_data[raw_data['session'].isin(selected_sessions)]
         
-        with dataset_tab2:
-            # Allow custom file upload
-            uploaded_file = st.file_uploader("Upload Event Log (CSV or XES)", type=["csv", "xes"])
-            
-            if uploaded_file:
-                # Load the event log
-                if uploaded_file.name.endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                    col1, col2, col3 = st.columns(3)
-                    case_id_col = col1.selectbox("Case ID Column", df.columns.tolist())
-                    activity_col = col2.selectbox("Activity Column", df.columns.tolist())
-                    timestamp_col = col3.selectbox("Timestamp Column", df.columns.tolist())
-                    
-                    if st.button("Process Event Log", key="process_csv"):
-                        # Convert to event log
-                        event_log = pm4py.format_dataframe(
-                            df, 
-                            case_id=case_id_col, 
-                            activity_key=activity_col, 
-                            timestamp_key=timestamp_col
-                        )
-                        display_dashboard(event_log, df)
-                else:
-                    # XES file
-                    if st.button("Process Event Log", key="process_xes"):
-                        event_log = pm4py.read_xes(uploaded_file)
-                        display_dashboard(event_log, None)
+        # Create event log
+        event_log = processor.create_event_log(raw_data)
         
-        # Educational materials section
-        st.header("Educational Resources")
-        if st.checkbox("Show Process Mining Concepts"):
-            st.markdown("""
-            - **Process Discovery**: Extracting process models from event logs
-            - **Conformance Checking**: Comparing actual vs. expected processes
-            - **Process Enhancement**: Improving processes based on data
-            - **Social Network Analysis**: Analyzing organizational perspectives
-            """)
+        # Get basic statistics
+        num_cases = len(raw_data['student_id'].unique()) if 'student_id' in raw_data.columns else 0
+        num_events = len(raw_data)
+        
+        return raw_data, event_log, num_cases, num_events
+        
+    except Exception as e:
+        st.error(f"Error loading EPM dataset: {str(e)}")
+        return None, None, 0, 0
+
+
+def process_uploaded_file(uploaded_file):
+    """Process uploaded file and convert to event log"""
+    try:
+        if uploaded_file.name.endswith('.zip'):
+            # Handle zip files
+            with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
+                file_list = zip_ref.namelist()
+                csv_files = [f for f in file_list if f.endswith('.csv')]
+                
+                if not csv_files:
+                    st.error("No CSV files found in the zip archive")
+                    return None, None, 0, 0
+                
+                # Use the first CSV file
+                csv_file = csv_files[0]
+                with zip_ref.open(csv_file) as f:
+                    raw_data = pd.read_csv(f)
+                    
+        elif uploaded_file.name.endswith('.csv'):
+            raw_data = pd.read_csv(uploaded_file)
             
-        st.divider()
-        st.info(f"Current session: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        elif uploaded_file.name.endswith('.xes'):
+            # Handle XES files
+            event_log = pm4py.read_xes(uploaded_file)
+            raw_data = log_converter.apply(event_log, variant=log_converter.Variants.TO_DATA_FRAME)
+            
+        else:
+            st.error("Unsupported file format")
+            return None, None, 0, 0
+            
+        # Convert to event log format
+        if 'case:concept:name' not in raw_data.columns:
+            # Try to map common column names
+            column_mapping = {
+                'student_id': 'case:concept:name',
+                'case_id': 'case:concept:name',
+                'Case ID': 'case:concept:name',
+                'activity': 'concept:name',
+                'Activity': 'concept:name',
+                'timestamp': 'time:timestamp',
+                'Timestamp': 'time:timestamp',
+                'time': 'time:timestamp'
+            }
+            
+            for old_col, new_col in column_mapping.items():
+                if old_col in raw_data.columns:
+                    raw_data = raw_data.rename(columns={old_col: new_col})
+        
+        # Ensure timestamp column is datetime
+        if 'time:timestamp' in raw_data.columns:
+            raw_data['time:timestamp'] = pd.to_datetime(raw_data['time:timestamp'])
+            
+        # Convert to PM4Py event log
+        event_log = log_converter.apply(raw_data)
+        
+        num_cases = len(raw_data['case:concept:name'].unique()) if 'case:concept:name' in raw_data.columns else 0
+        num_events = len(raw_data)
+        
+        return raw_data, event_log, num_cases, num_events
+        
+    except Exception as e:
+        st.error(f"Error processing uploaded file: {str(e)}")
+        return None, None, 0, 0
+
 
 def display_dashboard(event_log, raw_data=None):
-    # Display dataset summary first
-    st.header("Dataset Summary")
+    """Display the main dashboard with tabs"""
+    if event_log is None:
+        st.warning("Please load a dataset to begin analysis")
+        return
+        
+    # Get basic stats
+    num_cases = len(event_log)
+    num_events = sum(len(trace) for trace in event_log)
     
-    # Basic statistics - handle different event log formats
-    try:
-        if isinstance(event_log, pd.DataFrame):
-            num_cases = event_log['case:concept:name'].nunique() if 'case:concept:name' in event_log.columns else 0
-            num_events = len(event_log)
-            num_activities = event_log['concept:name'].nunique() if 'concept:name' in event_log.columns else 0
-        else:
-            # Try to handle as PM4Py EventLog object
-            num_cases = len(event_log)
-            num_events = sum(len(trace) for trace in event_log)
-            
-            # Extract activities from events
-            activities = set()
-            for trace in event_log:
-                for event in trace:
-                    if 'concept:name' in event:
-                        activities.add(event['concept:name'])
-            num_activities = len(activities)
-    except Exception as e:
-        st.error(f"Error calculating statistics: {str(e)}")
-        num_cases = 0
-        num_events = 0
-        num_activities = 0
-    
-    # Display metrics in columns
+    # Display basic information
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Cases", f"{num_cases:,}")
-    col2.metric("Total Events", f"{num_events:,}")
-    col3.metric("Unique Activities", num_activities)
+    with col1:
+        st.metric("Total Cases", f"{num_cases:,}")
+    with col2:
+        st.metric("Total Events", f"{num_events:,}")
+    with col3:
+        if raw_data is not None and 'session' in raw_data.columns:
+            st.metric("Sessions", f"{raw_data['session'].nunique()}")
+        else:
+            st.metric("Activities", f"{len(set(event['concept:name'] for trace in event_log for event in trace))}")
     
-    # If we have raw data, display session information
-    if raw_data is not None:
-        # Display sessions information
-        sessions_info = raw_data.groupby('session')['student_id'].nunique()
+    # Session distribution chart if available
+    if raw_data is not None and 'session' in raw_data.columns:
+        st.subheader("Session Distribution")
+        session_counts = raw_data.groupby('session')['student_id'].nunique().reset_index()
+        session_counts.columns = ['Session', 'Number of Students']
         
-        st.subheader("Session Breakdown")
-        
-        # Prepare data for bar chart
-        sessions = sessions_info.index.tolist()
-        student_counts = sessions_info.values.tolist()
-        
-        # Create bar chart
-        fig = go.Figure(data=[
-            go.Bar(
-                x=sessions, 
-                y=student_counts,
-                text=student_counts,
-                textposition='auto',
-                marker_color='royalblue'
-            )
-        ])
-        fig.update_layout(
+        fig = px.bar(
+            session_counts,
+            x='Session',
+            y='Number of Students',
             title="Number of Students per Session",
-            xaxis_title="Session",
-            yaxis_title="Number of Students",
             height=400
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -308,7 +211,7 @@ def display_dashboard(event_log, raw_data=None):
     # Success message
     st.success(f"Dataset successfully loaded with {num_cases} cases containing {num_events:,} events.")
     
-    # Create tabs for different views in the main panel
+    # Create tabs for different views
     tab1, tab2, tab3, tab4 = st.tabs(["Process Map", "Performance Metrics", "Patterns & Insights", "Conformance"])
     
     with tab1:
@@ -323,7 +226,7 @@ def display_dashboard(event_log, raw_data=None):
             - **Nodes** represent activities
             - **Edges** represent transitions between activities
             - **Edge thickness** indicates frequency of the path
-            - **Node color intensity** indicates activity frequency
+            - **Node color** indicates activity type (start/end/regular)
             
             Look for unexpected paths, loops, and parallel activities.
             """)
@@ -372,9 +275,117 @@ def display_dashboard(event_log, raw_data=None):
     
     with tab4:
         st.header("Conformance Checking")
-        st.info("Upload a reference model (BPMN or Petri Net) to perform conformance checking")
-        ref_model = st.file_uploader("Upload reference model", type=["pnml", "bpmn"])
+        st.markdown("""
+        Conformance checking allows you to compare the actual process execution against a reference model.
+        """)
         
+        # Add option for sample dataset
+        st.subheader("Reference Model Selection")
+        reference_model_option = st.radio(
+            "Choose reference model source:",
+            ["Upload Custom Model", "Use Sample Model"]
+        )
+        
+        ref_model = None
+        
+        if reference_model_option == "Upload Custom Model":
+            ref_model = st.file_uploader("Upload reference model (BPMN or Petri Net)", type=["pnml", "bpmn"])
+        else:
+            st.info("Using sample reference model for educational process mining")
+            # Create a simple sample Petri net for educational processes
+            try:
+                from pm4py.objects.petri_net.obj import PetriNet, Marking
+                from pm4py.objects.petri_net import utils as petri_utils
+                from pm4py.objects.petri_net.exporter import exporter as pnml_exporter
+                import tempfile
+                import os
+                
+                # Create a simple educational process model
+                net = PetriNet("educational_process")
+                
+                # Places
+                start = PetriNet.Place("start")
+                p_login = PetriNet.Place("p_login")
+                p_study = PetriNet.Place("p_study")
+                p_exercise = PetriNet.Place("p_exercise")
+                p_review = PetriNet.Place("p_review")
+                end = PetriNet.Place("end")
+                
+                net.places.add(start)
+                net.places.add(p_login)
+                net.places.add(p_study)
+                net.places.add(p_exercise)
+                net.places.add(p_review)
+                net.places.add(end)
+                
+                # Transitions
+                t_start = PetriNet.Transition("start", "Start")
+                t_login = PetriNet.Transition("login", "Login")
+                t_study = PetriNet.Transition("study", "Study Material")
+                t_exercise = PetriNet.Transition("exercise", "Do Exercise")
+                t_review = PetriNet.Transition("review", "Review")
+                t_end = PetriNet.Transition("end", "End")
+                
+                net.transitions.add(t_start)
+                net.transitions.add(t_login)
+                net.transitions.add(t_study)
+                net.transitions.add(t_exercise)
+                net.transitions.add(t_review)
+                net.transitions.add(t_end)
+                
+                # Arcs
+                petri_utils.add_arc_from_to(start, t_start, net)
+                petri_utils.add_arc_from_to(t_start, p_login, net)
+                petri_utils.add_arc_from_to(p_login, t_login, net)
+                petri_utils.add_arc_from_to(t_login, p_study, net)
+                petri_utils.add_arc_from_to(p_study, t_study, net)
+                petri_utils.add_arc_from_to(t_study, p_exercise, net)
+                petri_utils.add_arc_from_to(p_exercise, t_exercise, net)
+                petri_utils.add_arc_from_to(t_exercise, p_review, net)
+                petri_utils.add_arc_from_to(p_review, t_review, net)
+                petri_utils.add_arc_from_to(t_review, end, net)
+                petri_utils.add_arc_from_to(end, t_end, net)
+                
+                # Create initial and final marking
+                initial_marking = Marking()
+                initial_marking[start] = 1
+                final_marking = Marking()
+                final_marking[end] = 1
+                
+                # Export to temporary file
+                temp_dir = tempfile.gettempdir()
+                temp_file = os.path.join(temp_dir, "sample_educational_model.pnml")
+                pnml_exporter.apply(net, initial_marking, temp_file, final_marking=final_marking)
+                
+                # Create a file-like object from the temporary file
+                class SampleModelFile:
+                    def __init__(self, file_path):
+                        self.name = "sample_educational_model.pnml"
+                        with open(file_path, 'rb') as f:
+                            self.content = f.read()
+                    
+                    def read(self):
+                        return self.content
+                
+                # Use the SampleModelFile as reference model
+                ref_model = SampleModelFile(temp_file)
+                
+                st.success("Sample educational process model loaded successfully")
+                
+                # Display the model structure
+                st.markdown("""
+                **Sample Model Structure:**
+                1. Start → Login
+                2. Login → Study Material  
+                3. Study Material → Do Exercise
+                4. Do Exercise → Review
+                5. Review → End
+                """)
+                
+            except Exception as e:
+                st.error(f"Error creating sample model: {str(e)}")
+        
+        # Perform conformance checking if model is available
         if ref_model:
             try:
                 conformance_results = analyze_conformance(event_log, ref_model)
@@ -391,110 +402,137 @@ def display_dashboard(event_log, raw_data=None):
             except Exception as e:
                 st.error(f"Error in conformance checking: {str(e)}")
     
-    # Additional analysis sections in the main panel (outside of tabs)
-    st.header("Activity Frequency Analysis")
-    
-    # Calculate activity frequencies - handle different event log formats
-    activity_counts = {}
-    try:
-        if isinstance(event_log, pd.DataFrame):
-            if 'concept:name' in event_log.columns:
-                activity_counts = event_log['concept:name'].value_counts().to_dict()
-        else:
-            # Try to handle as PM4Py EventLog object
-            for trace in event_log:
-                for event in trace:
-                    if 'concept:name' in event:
-                        activity = event["concept:name"]
-                        activity_counts[activity] = activity_counts.get(activity, 0) + 1
-    except Exception as e:
-        st.error(f"Error calculating activity frequencies: {str(e)}")
-    
-    # Sort by frequency
-    sorted_activities = sorted(activity_counts.items(), key=lambda x: x[1], reverse=True)
-    
-    if sorted_activities:
-        # Display as horizontal bar chart
-        fig = go.Figure(data=[
-            go.Bar(
-                y=[a[0] for a in sorted_activities[:15]],  # Top 15 activities
-                x=[a[1] for a in sorted_activities[:15]],
-                orientation='h',
-                marker_color='lightblue'
-            )
-        ])
-        fig.update_layout(
-            title="Top 15 Most Frequent Activities",
-            yaxis_title="Activity",
-            xaxis_title="Frequency",
-            height=500
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No activity data available for frequency analysis.")
-    
-    # Add hourly activity distribution if timestamp data is available
-    st.header("Hourly Activity Distribution")
-    
-    # Extract hour information from events - handle different event log formats
-    hour_counts = {}
-    
-    try:
-        if isinstance(event_log, pd.DataFrame):
-            if 'time:timestamp' in event_log.columns:
-                # Ensure timestamp is datetime
-                if pd.api.types.is_datetime64_any_dtype(event_log['time:timestamp']):
-                    hour_data = event_log['time:timestamp'].dt.hour.value_counts().to_dict()
-                    hour_counts.update(hour_data)
-        else:
-            # Try to handle as PM4Py EventLog object
-            for trace in event_log:
-                for event in trace:
-                    if "time:timestamp" in event:
-                        timestamp = event["time:timestamp"]
-                        if hasattr(timestamp, 'hour'):  # Check if it's a datetime object
-                            hour = timestamp.hour
-                            hour_counts[hour] = hour_counts.get(hour, 0) + 1
-        
-        if hour_counts:
-            # Create hour labels for all 24 hours
-            hours = list(range(24))
-            counts = [hour_counts.get(hour, 0) for hour in hours]
-            
-            # Display as line chart
-            fig = go.Figure(data=[
-                go.Scatter(
-                    x=hours,
-                    y=counts,
-                    mode='lines+markers',
-                    marker_color='darkblue',
-                    line=dict(width=2)
-                )
-            ])
-            fig.update_layout(
-                title="Activity Distribution by Hour of Day",
-                xaxis_title="Hour of Day",
-                yaxis_title="Number of Events",
-                height=400,
-                xaxis=dict(tickmode='array', tickvals=list(range(24)))
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            
-            st.markdown("""
-            The hourly activity distribution reveals when students are most active in their learning process.
-            This can help identify:
-            - **Peak learning hours**: When most educational activities take place
-            - **Study patterns**: Whether learning happens more in mornings, afternoons, or evenings
-            - **Potential for scheduling**: Optimal times for synchronous activities or support
-            """)
-        else:
-            st.info("No timestamp data available for hourly distribution analysis.")
-    except Exception as e:
-        st.info("Could not generate hourly activity distribution.")
-    
     # Add footer with metadata
     st.markdown("---")
     st.markdown(f"<div class='dashboard-footer'>Analysis performed on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Dashboard by {AUTHOR}</div>", unsafe_allow_html=True)
+
+
+def main():
+    st.markdown("<h1 class='enhanced-header'>Process Mining Educational Dashboard - Enhanced Version</h1>", unsafe_allow_html=True)
+    st.caption(f"Last updated: {LAST_UPDATED} | Author: {AUTHOR}")
+    st.markdown("<div class='port-info'>Running on port 8502</div>", unsafe_allow_html=True)
+    
+    # Create a 2-column layout: sidebar for config, main area for content
+    with st.sidebar:
+        st.header("Configuration")
+        
+        # Dataset selection tabs
+        dataset_tab1, dataset_tab2 = st.tabs(["EPM Dataset", "Custom Upload"])
+        
+        with dataset_tab1:
+            # Option to load built-in EPM dataset
+            use_builtin_dataset = st.checkbox("Use built-in EPM Dataset", value=True)
+            
+            if use_builtin_dataset:
+                # Dataset path configuration
+                dataset_path = "EPM Dataset 2"
+                if os.path.exists(dataset_path):
+                    st.success(f"EPM Dataset found at {dataset_path}")
+                    
+                    # Configure session filtering
+                    st.subheader("Session Configuration")
+                    
+                    # Load available sessions
+                    try:
+                        raw_data, _, _, _ = load_epm_dataset(dataset_path)
+                        if raw_data is not None and 'session' in raw_data.columns:
+                            available_sessions = sorted(raw_data['session'].unique())
+                            
+                            # Session selection
+                            selected_sessions = st.multiselect(
+                                "Select sessions to analyze:",
+                                available_sessions,
+                                default=available_sessions[:3] if len(available_sessions) > 3 else available_sessions
+                            )
+                            
+                            # Load button
+                            if st.button("Load EPM Dataset"):
+                                if selected_sessions:
+                                    with st.spinner("Loading and processing EPM dataset..."):
+                                        raw_data, event_log, num_cases, num_events = load_epm_dataset(dataset_path, selected_sessions)
+                                        
+                                        if event_log is not None:
+                                            st.session_state.event_log = event_log
+                                            st.session_state.raw_data = raw_data
+                                            st.session_state.event_log_loaded = True
+                                            st.success(f"Loaded {num_cases} cases with {num_events:,} events")
+                                        else:
+                                            st.error("Failed to load EPM dataset")
+                                else:
+                                    st.warning("Please select at least one session")
+                        else:
+                            st.error("Could not load session information from EPM dataset")
+                    except Exception as e:
+                        st.error(f"Error accessing EPM dataset: {str(e)}")
+                else:
+                    st.error(f"EPM Dataset not found at {dataset_path}")
+                    st.info("Please ensure the EPM Dataset is available in the project directory")
+        
+        with dataset_tab2:
+            # Custom file upload
+            st.subheader("Upload Custom Dataset")
+            uploaded_file = st.file_uploader(
+                "Upload event log",
+                type=["csv", "xes", "zip"],
+                help="Supported formats: CSV, XES, or ZIP containing CSV files"
+            )
+            
+            if uploaded_file:
+                if st.button("Process Uploaded File"):
+                    with st.spinner("Processing uploaded file..."):
+                        raw_data, event_log, num_cases, num_events = process_uploaded_file(uploaded_file)
+                        
+                        if event_log is not None:
+                            st.session_state.event_log = event_log
+                            st.session_state.raw_data = raw_data
+                            st.session_state.event_log_loaded = True
+                            st.success(f"Loaded {num_cases} cases with {num_events:,} events")
+                        else:
+                            st.error("Failed to process uploaded file")
+        
+        # Add information section
+        with st.expander("ℹ️ About Process Mining"):
+            st.markdown("""
+            **Process Mining** is a field of data science that focuses on the analysis of business processes based on event logs.
+            
+            Key techniques include:
+            - **Process Discovery**: Extracting process models from event logs
+            - **Conformance Checking**: Comparing actual vs. expected processes
+            - **Process Enhancement**: Improving processes based on data
+            - **Social Network Analysis**: Analyzing organizational perspectives
+            """)
+            
+        st.divider()
+        st.info(f"Current session: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # Main content area
+    if st.session_state.event_log_loaded and st.session_state.event_log is not None:
+        display_dashboard(st.session_state.event_log, st.session_state.raw_data)
+    else:
+        # Welcome screen
+        st.markdown("""
+        ## Welcome to the Educational Process Mining Dashboard
+        
+        This enhanced dashboard provides comprehensive process mining capabilities for educational data analysis.
+        
+        ### Getting Started
+        1. **Load Data**: Use the sidebar to load the EPM dataset or upload your own data
+        2. **Explore**: Navigate through the tabs to analyze different aspects of your process
+        3. **Interpret**: Use the provided interpretations to understand your findings
+        
+        ### Features
+        - **Process Maps**: Visualize the flow of activities
+        - **Performance Metrics**: Analyze timing and efficiency
+        - **Pattern Analysis**: Discover common sequences and variants
+        - **Conformance Checking**: Compare against reference models
+        
+        ### Supported Data Formats
+        - CSV files with case, activity, and timestamp columns
+        - XES (eXtensible Event Stream) files
+        - ZIP archives containing CSV files
+        - Built-in EPM (Educational Process Mining) dataset
+        """)
+
 
 if __name__ == "__main__":
     main()

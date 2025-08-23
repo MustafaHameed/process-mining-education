@@ -8,7 +8,7 @@ def analyze_patterns(event_log):
     Analyze process patterns in the event log.
     
     Args:
-        event_log: PM4Py event log
+        event_log: PM4Py event log or pandas DataFrame
         
     Returns:
         Dictionary with pattern analysis results
@@ -21,8 +21,65 @@ def analyze_patterns(event_log):
         "analyst": "MustafaHameed"
     }
     
-    # Analyze variants
-    variants = pm4py.get_variants(event_log)
+    # Handle different event log formats
+    if isinstance(event_log, pd.DataFrame):
+        # DataFrame handling
+        if 'case:concept:name' in event_log.columns and 'concept:name' in event_log.columns:
+            # Analyze variants from DataFrame
+            variants = {}
+            
+            # Sort by timestamp if available
+            if 'time:timestamp' in event_log.columns:
+                event_log_sorted = event_log.sort_values(['case:concept:name', 'time:timestamp'])
+            else:
+                event_log_sorted = event_log
+            
+            # Group by case and create variants
+            for case_id, case_df in event_log_sorted.groupby('case:concept:name'):
+                variant = ','.join(case_df['concept:name'].tolist())
+                if variant not in variants:
+                    variants[variant] = []
+                variants[variant].append(case_id)
+        else:
+            # Not properly formatted
+            variants = {}
+    else:
+        # Try PM4Py EventLog format
+        try:
+            variants = pm4py.get_variants(event_log)
+        except:
+            # Fallback: create variants manually
+            variants = {}
+            
+            for trace in event_log:
+                try:
+                    # Extract case ID
+                    if hasattr(trace, 'attributes') and "concept:name" in trace.attributes:
+                        case_id = trace.attributes["concept:name"]
+                    else:
+                        case_id = str(id(trace))  # Use object ID if case ID not available
+                    
+                    # Create variant from activities
+                    activities = []
+                    for event in trace:
+                        try:
+                            if isinstance(event, dict):
+                                activity = event.get("concept:name")
+                            else:
+                                activity = event["concept:name"]
+                            
+                            if activity is not None:
+                                activities.append(str(activity))
+                        except (TypeError, KeyError, AttributeError):
+                            continue
+                    
+                    variant = ','.join(activities)
+                    if variant not in variants:
+                        variants[variant] = []
+                    variants[variant].append(case_id)
+                except:
+                    # Skip any trace that causes errors
+                    continue
     
     # Create variant distribution
     variant_distribution = []
@@ -55,32 +112,54 @@ def analyze_patterns(event_log):
             "activities": "Various"
         })
     
-    results["variant_distribution"] = pd.DataFrame(variant_distribution)
+    results["variant_distribution"] = pd.DataFrame(variant_distribution) if variant_distribution else pd.DataFrame({
+        "variant": ["No variants found"],
+        "count": [0],
+        "activities": ["None"]
+    })
     
     # Analyze common sequences (bigrams)
     sequence_counts = defaultdict(int)
     
-    for trace in event_log:
-        # Extract activity names from the trace
-        activities = []
-        for event in trace:
-            # Handle different PM4Py versions and event formats
-            if isinstance(event, dict):
-                activity = event.get("concept:name")
+    # Handle different event log formats
+    if isinstance(event_log, pd.DataFrame):
+        if 'case:concept:name' in event_log.columns and 'concept:name' in event_log.columns:
+            # Sort by timestamp if available
+            if 'time:timestamp' in event_log.columns:
+                event_log_sorted = event_log.sort_values(['case:concept:name', 'time:timestamp'])
             else:
-                # For newer PM4Py versions where events might be objects
-                try:
-                    activity = event["concept:name"]
-                except (TypeError, KeyError):
-                    continue
-                    
-            if activity:
-                activities.append(activity)
+                event_log_sorted = event_log
+            
+            # Process each case
+            for case_id, case_df in event_log_sorted.groupby('case:concept:name'):
+                activities = case_df['concept:name'].tolist()
                 
-        # Count sequences (bigrams)
-        for i in range(len(activities) - 1):
-            sequence = f"{activities[i]} → {activities[i+1]}"
-            sequence_counts[sequence] += 1
+                # Count sequences (bigrams)
+                for i in range(len(activities) - 1):
+                    sequence = f"{activities[i]} → {activities[i+1]}"
+                    sequence_counts[sequence] += 1
+    else:
+        # Process PM4Py EventLog
+        for trace in event_log:
+            # Extract activity names safely
+            activities = []
+            
+            for event in trace:
+                try:
+                    if isinstance(event, dict):
+                        activity = event.get("concept:name")
+                    else:
+                        activity = event["concept:name"]
+                    
+                    if activity is not None:
+                        activities.append(str(activity))
+                except (TypeError, KeyError, AttributeError):
+                    continue
+            
+            # Count sequences (bigrams)
+            for i in range(len(activities) - 1):
+                sequence = f"{activities[i]} → {activities[i+1]}"
+                sequence_counts[sequence] += 1
     
     # Convert to DataFrame
     common_sequences = []
@@ -90,34 +169,55 @@ def analyze_patterns(event_log):
             "frequency": count
         })
     
+    # Ensure we have at least one row
+    if not common_sequences:
+        common_sequences.append({
+            "sequence": "No sequences found",
+            "frequency": 0
+        })
+    
     results["common_sequences"] = pd.DataFrame(common_sequences)
     
     # Analyze rework (repeated activities within a case)
     rework_counts = defaultdict(int)
     
-    for trace in event_log:
-        # Extract activity names safely handling different event formats
-        activities = []
-        for event in trace:
-            # Handle different PM4Py versions and event formats
-            if isinstance(event, dict):
-                activity = event.get("concept:name")
-            else:
-                # For newer PM4Py versions where events might be objects
+    # Handle different event log formats
+    if isinstance(event_log, pd.DataFrame):
+        if 'case:concept:name' in event_log.columns and 'concept:name' in event_log.columns:
+            # Process each case
+            for case_id, case_df in event_log.groupby('case:concept:name'):
+                activities = case_df['concept:name'].tolist()
+                
+                # Count rework instances
+                seen_activities = set()
+                for activity in activities:
+                    if activity in seen_activities:
+                        rework_counts[activity] += 1
+                    seen_activities.add(activity)
+    else:
+        # Process PM4Py EventLog
+        for trace in event_log:
+            # Extract activity names safely
+            activities = []
+            
+            for event in trace:
                 try:
-                    activity = event["concept:name"]
-                except (TypeError, KeyError):
-                    continue
+                    if isinstance(event, dict):
+                        activity = event.get("concept:name")
+                    else:
+                        activity = event["concept:name"]
                     
-            if activity:
-                activities.append(activity)
-        
-        # Count rework instances
-        seen_activities = set()
-        for activity in activities:
-            if activity in seen_activities:
-                rework_counts[activity] += 1
-            seen_activities.add(activity)
+                    if activity is not None:
+                        activities.append(str(activity))
+                except (TypeError, KeyError, AttributeError):
+                    continue
+            
+            # Count rework instances
+            seen_activities = set()
+            for activity in activities:
+                if activity in seen_activities:
+                    rework_counts[activity] += 1
+                seen_activities.add(activity)
     
     # Convert to DataFrame
     rework_patterns = []
@@ -139,22 +239,84 @@ def analyze_patterns(event_log):
     
     # Detect potential anomalies (very rare variants)
     anomalies = []
-    median_length = median([len(trace) for trace in event_log])
     
-    for variant, traces in variants.items():
-        # In PM4Py 2.x, variant might be a tuple of activities rather than a comma-separated string
-        variant_length = len(variant) if isinstance(variant, tuple) else len(variant.split(","))
+    # Calculate median trace length
+    trace_lengths = []
+    
+    # Handle different event log formats
+    if isinstance(event_log, pd.DataFrame):
+        if 'case:concept:name' in event_log.columns:
+            # Get case lengths
+            case_lengths = event_log.groupby('case:concept:name').size()
+            trace_lengths = case_lengths.tolist()
+    else:
+        # Process PM4Py EventLog
+        for trace in event_log:
+            try:
+                # Count events in trace
+                event_count = 0
+                for event in trace:
+                    event_count += 1
+                trace_lengths.append(event_count)
+            except:
+                # Skip any trace that causes errors
+                continue
+    
+    # Calculate median length if we have traces
+    if trace_lengths:
+        median_length = median(trace_lengths)
         
-        # Consider it anomalous if it's rare and unusually long or short
-        if len(traces) == 1 and abs(variant_length - median_length) > 3:
-            case_id = traces[0].attributes["concept:name"]
-            variant_str = ",".join(variant) if isinstance(variant, tuple) else variant
-            anomalies.append({
-                "case_id": case_id,
-                "variant": variant_str,
-                "length": variant_length,
-                "reason": "Unusual length"
-            })
+        # Find anomalies
+        if isinstance(event_log, pd.DataFrame):
+            if 'case:concept:name' in event_log.columns:
+                # Find rare variants
+                for variant, cases in variants.items():
+                    if len(cases) == 1:
+                        variant_length = len(variant.split(","))
+                        if abs(variant_length - median_length) > 3:
+                            anomalies.append({
+                                "case_id": cases[0],
+                                "variant": variant,
+                                "length": variant_length,
+                                "reason": "Unusual length"
+                            })
+        else:
+            # Process PM4Py EventLog variants
+            for variant, traces in variants.items():
+                if len(traces) == 1:
+                    # Get variant length
+                    if isinstance(variant, tuple):
+                        variant_length = len(variant)
+                    else:
+                        variant_length = len(variant.split(","))
+                    
+                    if abs(variant_length - median_length) > 3:
+                        try:
+                            # Get case ID
+                            if hasattr(traces[0], 'attributes') and "concept:name" in traces[0].attributes:
+                                case_id = traces[0].attributes["concept:name"]
+                            else:
+                                case_id = str(id(traces[0]))
+                            
+                            variant_str = ",".join(variant) if isinstance(variant, tuple) else variant
+                            anomalies.append({
+                                "case_id": case_id,
+                                "variant": variant_str,
+                                "length": variant_length,
+                                "reason": "Unusual length"
+                            })
+                        except:
+                            # Skip any trace that causes errors
+                            continue
+    
+    # If no anomalies found, add placeholder
+    if not anomalies:
+        anomalies.append({
+            "case_id": "None",
+            "variant": "None",
+            "length": 0,
+            "reason": "No anomalies found"
+        })
     
     results["anomalies"] = pd.DataFrame(anomalies)
     
@@ -162,6 +324,9 @@ def analyze_patterns(event_log):
 
 def median(values):
     """Calculate the median of a list of values"""
+    if not values:
+        return 0
+        
     sorted_values = sorted(values)
     n = len(sorted_values)
     if n % 2 == 0:
